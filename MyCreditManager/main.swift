@@ -23,21 +23,6 @@ enum Score:Double{
         }
     }
 }
-
-enum CmdMessage:String{
-    enum cmdType {
-        case add
-        case delete
-    }
-    case requiredStudentsInput
-    //case requireStudentsInput = "할 학생의 입력을 입력해주세요"
-    func requireStudentsInput(_ cmdTpye:cmdType)->String{
-        switch cmdTpye{
-        case .add: return ""
-        case .delete: return ""
-        }
-    }
-}
 typealias Name = String
 typealias Subject = String
 typealias SubjectInfos = [Subject:Score]
@@ -55,82 +40,114 @@ extension Students{
     }
 
 }
-
-func MyCreditManager(){
+func coreLogics(_ cases:[(Action,Target)])->[()->()]{
     var students = Students()
-    let functionList = [
-    { // append student
-        print("추가할 학생의 이름을 입력해주세요.")
-        guard let input:Name = readLine() else { return }
-        if !students.isContained(input){
-            students.add(input)
-            print("\(input) 학생을 추가하였습니다.")
-        }else{
-            print("\(input)은 이미 존재하는 학생입니다. 추가하지 않습니다.")
+    func actionFunc(action: Action,target: Target)->(()->()){
+        switch (action,target){
+        case (.append,.student):
+            return {
+                Output(.cmd, .inputGuide(.event(action: action, target: target)))
+                guard let input:Name = readLine() else {
+                    Output(.cmd, .inputGuide(.event(action: action, target: target)))
+                    return
+                }
+                if !students.isContained(input){
+                    students.add(input)
+                    Output(.cmd, .completed(.event(action: action, target: target)),input)
+                }else{
+                    Output(.cmd, .error(type: .event(action: action, target: target)),input)
+                }
+            }
+        case (.delete,.student):
+            return {
+                Output(.cmd, .inputGuide(.event(action: .delete, target: .student)))
+                guard let input:Name = readLine() else { return }
+                if !students.isContained(input){
+                    Output(.cmd, .error(type: .event(action: .delete, target: .student)), input)
+                }else{
+                    students.delete(input)
+                    Output(.cmd, .completed(.event(action: .delete, target: .student)), input)
+                }
+            }
+        case (.append,.subject):
+            return {
+                Output(.cmd, .inputGuide(.event(action: .append, target: .subject)))
+                guard let input:String = readLine() else {
+                    Output(.cmd, .error(type: .input))
+                    return
+                }
+                var inputsIter = input.components(separatedBy: " ").makeIterator()
+                guard let name:Name = inputsIter.next(),
+                      let subject:Subject = inputsIter.next(),
+                      let rawScore = inputsIter.next() else {
+                    Output(.cmd, .error(type: .input))
+                    return
+                }
+                guard let score:Score = Score(rawScore) else {
+                    Output(.cmd, .error(type: .input))
+                    return}
+                guard students.isContained(name) else {
+                    Output(.cmd, .error(type: .event(action: .append, target: .subject)), name)
+                    return }
+                students[name]?[subject] = score
+                Output(.cmd, .completed(.event(action: .append, target: .subject)), name,subject,rawScore)
+            }
+        case (.delete,.subject):
+            return {
+                Output(.cmd, .inputGuide(.event(action: .delete, target: .student)))
+                guard let input:String = readLine() else {
+                    Output(.cmd, .error(type: .input))
+                    return
+                }
+                var inputsIter = input.components(separatedBy: " ").makeIterator()
+                guard let name:Name = inputsIter.next(),
+                      let subject:Subject = inputsIter.next() else {
+                    Output(.cmd, .error(type: .input))
+                    return
+                }
+                students[name]?.removeValue(forKey: subject)
+                Output(.cmd, .completed(.event(action: .delete, target: .subject)), name,subject)
+            }
         }
-    },
-    { // delete student
-        print("제거할 학생의 이름을 입력해주세요.")
-        guard let input:Name = readLine() else { return }
-        if !students.isContained(input){
-            print("\(input)학생을 찾지 못했습니다.")
-        }else{
-            students.delete(input)
-            print("\(input)학생을 삭제하였습니다.")
-        }
-    },
-    {// append score
-        print("성적을 추가할 학생의 이름, 과목 이름, 성적(A+ ,A , F 등)을 띄어쓰기로 구분하여 차례로 작성해주세요.")
-        print("입력예) Mickey Swift A+")
-        print("만약에 학생의 성적 중 해당 과목이 존재하면 기존 점수가 갱신됩니다.")
-        guard let input:String = readLine() else {
-            print("잘 못 입력했습니다.")
-            return
-        }
-        var inputsIter = input.components(separatedBy: " ").makeIterator()
-        guard let name:Name = inputsIter.next(),
-              let subject:Subject = inputsIter.next(),
-              let rawScore = inputsIter.next() else {
-            print("입력이 이상해요 확인해주세요")
-            return
-        }
-        guard students.isContained(name) else { return }
-        guard let score:Score = Score(rawScore) else {return}
-        students[name]?[subject] = score
-    },
-    {// delete score
-        print("성적을 추가할 학생의 이름, 과목 이름, 성적(A+ ,A , F 등)을 띄어쓰기로 구분하여 차례로 작성해주세요.")
-        print("입력예) Mickey Swift A+")
-        guard let input:String = readLine() else {
-            print("잘 못 입력했습니다.")
-            return
-        }
-        var inputsIter = input.components(separatedBy: " ").makeIterator()
-        guard let name:Name = inputsIter.next(),
-              let subject:Subject = inputsIter.next() else {
-            print("입력이 잘 못 되었습니다. 확인해주세요")
-            return
-        }
-        students[name]?.removeValue(forKey: subject)
-    },
-    {
-        guard let name:Name = readLine() else{
-            print("잘 못 입력했습니다.")
-            return
-        }
-        guard students.isContained(name) else {return}
-        let subjectInfos = students[name]!
-        subjectInfos.forEach { (key: Subject, value: Score) in print("\(key):\(value)") }
-        print("평점:\(subjectInfos.getScoreAvg())")
     }
-    ]
+    func rateFunc(){
+        Output(.cmd, .inputGuide(.rate))
+        guard let name:Name = readLine() else{
+            Output(.cmd, .error(type: .input))
+            return
+        }
+        guard students.isContained(name) else {
+            Output(.cmd, .error(type: .rate))
+            return
+        }
+        let subjectInfos = students[name]!
+        subjectInfos.forEach { (key: Subject, value: Score) in print("\(key): \(value)") }
+        Output(.cmd, .completed(.rate), String(subjectInfos.getScoreAvg()))
+    }
+
+    let logics: [()->()] = cases.map { act,tar in actionFunc(action: act, target: tar) }
+    let myLogics:[()->()] = [logics, [rateFunc]].flatMap { $0 }
+    print(myLogics)
+    return myLogics
+}
+func Runner(caseList:[(Action,Target)]){
+    let cmdList = coreLogics(caseList)
+    Output(.cmd,.inputGuide(.base))
     while let input = readLine(){
-        guard input != "X" else {return}
-        guard let number:Int = Int(input),(0 <= number && number < functionList.count) else {
-            print("잘 못 입력했습니다. 다시 입력하세요.")
+        guard input != "X" else {
+            Output(.cmd, .quitProcess)
+            return
+        }
+        guard let number:Int = Int(input), (0<=number && number <= cmdList.count) else {
+            Output(.cmd, .error(type: .input))
             continue
         }
-        functionList[number - 1]()
+        cmdList[number - 1]()
+        Output(.cmd,.inputGuide(.base))
     }
 }
-//MyCreditManager()
+func MyCreditManager(){
+    let cases:[(Action,Target)] = [ (.append,.student), (.delete,.student), (.append,.subject), (.delete,.subject) ]
+    Runner(caseList: cases)
+}
+MyCreditManager()
